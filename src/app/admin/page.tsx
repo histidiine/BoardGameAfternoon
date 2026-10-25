@@ -40,7 +40,7 @@ export default async function AdminPage() {
   const others = games.map((g) => ({ id: g.id, name: g.name }));
   // Members holding more stars than the current budget allows (after the budget was lowered).
   const starsPerMember = new Map<string, number>();
-  for (const t of Object.values(vote.tally)) for (const id of t.voterIds) starsPerMember.set(id, (starsPerMember.get(id) ?? 0) + 1);
+  for (const t of Object.values(vote.tally)) t.voterIds.forEach((id, i) => starsPerMember.set(id, (starsPerMember.get(id) ?? 0) + t.voterStars[i]));
   const overBudget = [...starsPerMember.values()].filter((n) => n > vote.budget).length;
 
   return (

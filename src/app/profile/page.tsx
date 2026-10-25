@@ -38,7 +38,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <NameForm name={viewer.display_name} email={email} />
           <p className="pmuted">
             {plural(favorites.length, "favorite")}
-            {vote.encounter ? ` · ${vote.myVotes.length} of ${vote.budget} stars used for the next table` : ""}
+            {vote.encounter ? ` · ${vote.used} of ${vote.budget} stars used for the next table` : ""}
             {viewer.role === "admin" ? " · admin" : ""}
           </p>
         </div>

@@ -69,7 +69,10 @@ export async function getTally(encounterId: string): Promise<Record<string, Tall
   const { data, error } = await supabase.rpc("get_vote_tally", { p_encounter: encounterId });
   if (error) throw error;
   const tally: Record<string, TallyRow> = {};
-  for (const r of (data ?? []) as any[]) tally[r.game_id] = { votes: r.votes, voterIds: r.voter_ids ?? [] };
+  for (const r of (data ?? []) as any[]) {
+    const voterIds: string[] = r.voter_ids ?? [];
+    tally[r.game_id] = { votes: r.votes, voterIds, voterStars: voterIds.map((_, i) => r.voter_stars?.[i] ?? 1) };
+  }
   return tally;
 }
 
@@ -84,13 +87,18 @@ export const getVoteContext = cache(async (): Promise<VoteContext> => {
   ]);
   const encounter = (enc as Encounter) ?? null;
   const tally = encounter ? await getTally(encounter.id) : {};
-  const myVotes = viewer
-    ? Object.entries(tally).filter(([, t]) => t.voterIds.includes(viewer.id)).map(([g]) => g)
-    : [];
+  const myStars: Record<string, number> = {};
+  if (viewer) {
+    for (const [g, t] of Object.entries(tally)) {
+      const i = t.voterIds.indexOf(viewer.id);
+      if (i >= 0) myStars[g] = t.voterStars[i];
+    }
+  }
   return {
     encounter,
     tally,
-    myVotes,
+    myStars,
+    used: Object.values(myStars).reduce((s, n) => s + n, 0),
     budget: settings?.vote_budget ?? 5,
     anonymous: settings?.anonymous_votes ?? false,
   };
@@ -130,6 +138,7 @@ export interface RankRow {
   game: GameView;
   votes: number;
   voterIds: string[];
+  voterStars: number[];
   rank: number;
   tie: boolean;
 }
@@ -137,7 +146,7 @@ export function rank(tally: Record<string, TallyRow>, games: GameView[]): RankRo
   const byId = new Map(games.map((g) => [g.id, g]));
   const rows = Object.entries(tally)
     .filter(([id, t]) => t.votes > 0 && byId.has(id))
-    .map(([id, t]) => ({ game: byId.get(id)!, votes: t.votes, voterIds: t.voterIds, rank: 0, tie: false }))
+    .map(([id, t]) => ({ game: byId.get(id)!, votes: t.votes, voterIds: t.voterIds, voterStars: t.voterStars, rank: 0, tie: false }))
     .sort((a, b) => b.votes - a.votes || a.game.name.localeCompare(b.game.name));
   for (const r of rows) {
     r.rank = 1 + rows.filter((o) => o.votes > r.votes).length;

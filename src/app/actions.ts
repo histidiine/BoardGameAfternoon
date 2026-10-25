@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/data";
-import { isTheme } from "@/lib/domain";
+import { MAX_STARS_PER_GAME, isTheme } from "@/lib/domain";
 import { THEME_COOKIE } from "@/lib/theme";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -27,19 +27,26 @@ export async function toggleFavorite(gameId: string, on: boolean): Promise<Actio
   return { ok: true };
 }
 
-export async function toggleVote(encounterId: string, gameId: string, on: boolean): Promise<ActionResult> {
+// Sets how many stars the viewer gives a game for the open afternoon: 0 (none), 1 or 2.
+export async function setStars(encounterId: string, gameId: string, stars: number): Promise<ActionResult> {
   const viewer = await getViewer();
   if (!viewer) return { ok: false, error: "Log in to vote." };
+  if (!Number.isInteger(stars) || stars < 0 || stars > MAX_STARS_PER_GAME) return { ok: false, error: "Give a game up to " + MAX_STARS_PER_GAME + " stars." };
   const supabase = await createClient();
-  const { error } = on
-    ? await supabase.from("votes").insert({ encounter_id: encounterId, game_id: gameId, member_id: viewer.id })
-    : await supabase
-        .from("votes")
-        .delete()
-        .eq("encounter_id", encounterId)
-        .eq("game_id", gameId)
-        .eq("member_id", viewer.id);
-  if (error && error.code !== "23505") return { ok: false, error: friendly(error, "Your star did not save. Try again.") };
+  const mine = { encounter_id: encounterId, game_id: gameId, member_id: viewer.id };
+  let error: { code?: string; message: string } | null = null;
+  if (stars === 0) {
+    ({ error } = await supabase.from("votes").delete().match(mine));
+  } else {
+    // Change the existing star first; give a new one only if there was none.
+    const upd = await supabase.from("votes").update({ stars }).match(mine).select("game_id");
+    error = upd.error;
+    if (!error && !upd.data?.length) {
+      ({ error } = await supabase.from("votes").insert({ ...mine, stars }));
+      if (error?.code === "23505") ({ error } = await supabase.from("votes").update({ stars }).match(mine));
+    }
+  }
+  if (error) return { ok: false, error: friendly(error, "Your star did not save. Try again.") };
   revalidatePath("/", "layout");
   return { ok: true };
 }

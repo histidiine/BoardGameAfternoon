@@ -58,7 +58,7 @@ export default async function GamePage({ params }: Params) {
           )}
           {viewer && e && (
             <p className="hint">
-              {Math.max(0, vote.budget - vote.myVotes.length)} of {vote.budget} stars left for {fmtDay(e.starts_at)}.
+              {Math.max(0, vote.budget - vote.used)} of {vote.budget} stars left for {fmtDay(e.starts_at)}.
             </p>
           )}
           <dl className="stats">
@@ -116,13 +116,14 @@ export default async function GamePage({ params }: Params) {
               <div className="voters" style={{ marginTop: 8 }}>
                 {!t ? (
                   <span className="hint">No stars yet. Be the first.</span>
-                ) : vote.anonymous && t.voterIds.length < t.votes ? (
+                ) : vote.anonymous && t.voterStars.reduce((s, n) => s + n, 0) < t.votes ? (
                   <span className="hint">{plural(t.votes, "star")} (names hidden)</span>
                 ) : (
-                  t.voterIds.map((id) => (
+                  t.voterIds.map((id, i) => (
                     <span className="vchip" key={id}>
                       <Avatar member={names.get(id)} />
                       {names.get(id)?.display_name ?? "Former member"}
+                      {t.voterStars[i] > 1 && <b> ×{t.voterStars[i]}</b>}
                     </span>
                   ))
                 )}

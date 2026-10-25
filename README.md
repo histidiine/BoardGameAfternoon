@@ -27,7 +27,7 @@ Themes A "Cozy evening" (default), B "Game table" and C "Fun fair daylight" are 
 
 These live in `supabase/migrations/`, so no browser or script can get around them:
 
-- At most **5 stars** per member per afternoon by default, one per game. Admins change the number (1 to 20) in Admin > Voting rules (`settings.vote_budget`). Lowering it keeps stars already given; a member above the new number cannot add more until they remove some.
+- **5 stars** per member per afternoon by default. A member gives a game 1 star, or 2 to show they really want to play it (tap the star again; a third tap takes them back). Admins change the number of stars (1 to 20) in Admin > Voting rules (`settings.vote_budget`). Lowering it keeps stars already given; a member above the new number cannot add more until they remove some. The ranking counts stars.
 - Only **one afternoon open** for voting at a time.
 - Voting **closes at the deadline**: stars can no longer be added or removed, and the page moves to Past tables.
 - Members change only their own name, theme, hearts and stars, and, for games they own: the game's name, whether their copy is available, and their comment (through `member_update_copy`). Renaming keeps the game's web address. Adding or removing games, afternoons and roles are admin-only.
@@ -40,7 +40,7 @@ These live in `supabase/migrations/`, so no browser or script can get around the
 ### 1. Create the Supabase project
 
 1. Sign up at [supabase.com](https://supabase.com) (the free plan is enough for a few dozen members) and create a project. Pick a European region, for example Zurich or Frankfurt.
-2. Open **SQL Editor** and run each file of `supabase/migrations/` in order of its name: paste the whole content of `20261025100000_initial_schema.sql`, run it, then do the same with `20261025120000_name_matching_and_member_merge.sql` and `20261025140000_member_game_edits.sql`.
+2. Open **SQL Editor** and run each file of `supabase/migrations/` in order of its name: paste the whole content of `20261025100000_initial_schema.sql`, run it, then do the same with `20261025120000_name_matching_and_member_merge.sql`, `20261025140000_member_game_edits.sql` and `20261025160000_two_stars_per_game.sql`.
    - If you use the Supabase CLI instead: `npx supabase link --project-ref <your-ref>` then `npx supabase db push`.
 3. Do **not** run `supabase/seed.sql` on this project. It holds sample games and people for local testing only.
 
@@ -97,6 +97,7 @@ When a new file appears in `supabase/migrations/`, run it once on the real proje
 
 - `20261025120000_name_matching_and_member_merge.sql` (25 Oct 2026): owner names match without accents, capitals, spaces or punctuation (in imports and at sign-up), adds the admin tools to merge two members and to take a member's games off the shelf, and fixes the accent table used for game slugs.
 - `20261025140000_member_game_edits.sql` (25 Oct 2026): copies get an availability flag, and members can fix the name of a game they own, mark their copy available or not, and edit their comment.
+- `20261025160000_two_stars_per_game.sql` (25 Oct 2026): a member can give a game up to 2 stars; the star budget counts stars, the tally returns each voter's stars.
 
 ## Trying it with sample data
 

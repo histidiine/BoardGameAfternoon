@@ -8,7 +8,7 @@ import { Avatar } from "@/components/Bits";
 import { Icon } from "@/components/Icons";
 import { useUI } from "@/components/UI";
 import type { Encounter, MemberLite, Role } from "@/lib/domain";
-import { VOTE_BUDGET_MAX, VOTE_BUDGET_MIN, closesIn, fmtDay, fmtFull, fmtTime, plural } from "@/lib/domain";
+import { MAX_STARS_PER_GAME, VOTE_BUDGET_MAX, VOTE_BUDGET_MIN, closesIn, fmtDay, fmtFull, fmtTime, plural } from "@/lib/domain";
 import { nameKey, TEMPLATE_COLUMNS } from "@/lib/import";
 
 /* ---------- import ---------- */
@@ -401,7 +401,7 @@ export function VotingPanel({ budget, anonymous, open, overBudget }: { budget: n
             </button>
           </div>
           <span className="hint">
-            Between {VOTE_BUDGET_MIN} and {VOTE_BUDGET_MAX}. Now {plural(budget, "star")}.
+            Between {VOTE_BUDGET_MIN} and {VOTE_BUDGET_MAX}. Now {plural(budget, "star")}. A member can give one game up to {MAX_STARS_PER_GAME} stars.
             {open ? " The change applies right away, also to the afternoon open for voting." : ""}
             {open && valid && n < budget ? " Stars already given stay; members above the new number cannot add more until they remove some." : ""}
           </span>

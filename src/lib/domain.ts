@@ -42,6 +42,9 @@ export interface GameView {
 // At least one owner can bring it. Games with no copy at all count as unavailable.
 export const isAvailable = (g: Pick<GameView, "copies">) => g.copies.some((c) => c.available);
 
+// A member can give one game up to this many stars, to show how much they want to play it.
+export const MAX_STARS_PER_GAME = 2;
+
 export const VOTE_BUDGET_MIN = 1;
 export const VOTE_BUDGET_MAX = 20;
 export interface Encounter {
@@ -54,13 +57,15 @@ export interface Encounter {
   closed_at: string | null;
 }
 export interface TallyRow {
-  votes: number;
+  votes: number; // total stars
   voterIds: string[];
+  voterStars: number[]; // stars given by each voter, same order as voterIds
 }
 export interface VoteContext {
   encounter: Encounter | null; // the encounter open for voting, if any
   tally: Record<string, TallyRow>;
-  myVotes: string[]; // game ids the viewer starred for the open encounter
+  myStars: Record<string, number>; // game id -> stars the viewer gave it (1 or 2) for the open encounter
+  used: number; // stars the viewer has given in total
   budget: number;
   anonymous: boolean;
 }

@@ -39,7 +39,7 @@ export default async function NextTablePage() {
 
   const rows = rank(vote.tally, games);
   const host = members.find((m) => m.id === e.host_id);
-  const used = vote.myVotes.length;
+  const used = vote.used;
   const voterCount = new Set(Object.values(vote.tally).flatMap((t) => t.voterIds)).size;
   const live = { vote, loggedIn: !!viewer };
 
@@ -49,7 +49,7 @@ export default async function NextTablePage() {
         <div>
           <p className="eyebrow">Next table</p>
           <h1>{fmtFull(e.starts_at)}</h1>
-          <p className="lede">Star up to {vote.budget} games you would like to play. You can change your stars until voting closes.</p>
+          <p className="lede">You have {vote.budget} stars to give. Give a game 1 star, or 2 if you really want to play it: tap the star once, twice, and a third time to take them back. You can change your stars until voting closes.</p>
         </div>
       </section>
       <div className="surface enc">
@@ -80,7 +80,7 @@ export default async function NextTablePage() {
           ) : (
             <>
               <b>Want a say?</b>
-              <span className="muted">Log in to star up to {vote.budget} games.</span>
+              <span className="muted">Log in to give your {vote.budget} stars.</span>
               <Link className="btn pink" href="/login">Log in to vote</Link>
             </>
           )}

@@ -321,3 +321,7 @@ img{max-width:100%}
 .unavail{display:inline-flex;align-items:center;gap:6px;justify-self:start;align-self:flex-start;padding:4px 10px;border-radius:999px;border:2px dashed var(--card-heart);color:var(--card-heart);font-weight:800;font-size:14px}
 .unavail.sm{font-size:12px;padding:1px 8px}
 .card.off .cover{filter:saturate(.35)}
+
+/* two stars from me: the second star tucks behind the first */
+.hs.star.two .px+.px{margin-left:-11px}
+.hs.big.star.two .px+.px{margin-left:-13px}

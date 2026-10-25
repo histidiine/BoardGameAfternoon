@@ -7,9 +7,9 @@ import { Cover } from "@/components/Bits";
 import { Icon, Px } from "@/components/Icons";
 import { StarButton } from "@/components/VoteButtons";
 
-function voterLine(ids: string[], votes: number, names: Map<string, string>, anonymous: boolean) {
-  if (anonymous || ids.length < votes) return plural(votes, "star");
-  return ids.map((id) => names.get(id) ?? "Former member").join(", ");
+function voterLine(ids: string[], stars: number[], votes: number, names: Map<string, string>, anonymous: boolean) {
+  if (anonymous || stars.reduce((s, n) => s + n, 0) < votes) return plural(votes, "star");
+  return ids.map((id, i) => (names.get(id) ?? "Former member") + (stars[i] > 1 ? ` ×${stars[i]}` : "")).join(", ");
 }
 
 function StaticStar({ votes }: { votes: number }) {
@@ -67,7 +67,7 @@ export function Podium({ rows, members, anonymous, live }: Props) {
               {r.game.name}
             </Link>
             {live && r.game.copies.length ? <StarButton {...starProps(r.game, live.vote, live.loggedIn)} /> : <StaticStar votes={r.votes} />}
-            <span className="vn">{voterLine(r.voterIds, r.votes, names, anonymous)}</span>
+            <span className="vn">{voterLine(r.voterIds, r.voterStars, r.votes, names, anonymous)}</span>
             <div className={`step r${Math.min(r.rank, 3)}`} aria-label={`Rank ${r.rank}${r.tie ? ", tied" : ""}`}>
               {r.rank}
             </div>
@@ -102,7 +102,7 @@ export function RankList({ rows, members, anonymous, live, played }: Props) {
                 </>
               )}
             </span>
-            <span className="vn">{voterLine(r.voterIds, r.votes, names, anonymous)}</span>
+            <span className="vn">{voterLine(r.voterIds, r.voterStars, r.votes, names, anonymous)}</span>
           </div>
           {live && r.game.copies.length ? <StarButton {...starProps(r.game, live.vote, live.loggedIn)} /> : <StaticStar votes={r.votes} />}
         </li>

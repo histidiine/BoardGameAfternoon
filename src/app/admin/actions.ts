@@ -109,8 +109,8 @@ export async function applyImport(rows: ImportRow[]): Promise<{ ok: true; summar
 
 /* ---------- encounters ---------- */
 
-export async function createEncounter(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  if (!(await requireAdmin())) return NOT_ADMIN;
+// Reads and checks the afternoon form, shared by "Open voting" and "Edit".
+function readEncounterForm(formData: FormData) {
   const startsAt = String(formData.get("starts_at") ?? "");
   const deadline = String(formData.get("voting_deadline") ?? "") || startsAt;
   const place = String(formData.get("place") ?? "").trim();
@@ -118,17 +118,45 @@ export async function createEncounter(_prev: ActionResult | null, formData: Form
   const start = new Date(startsAt);
   const dl = new Date(deadline);
 
-  if (Number.isNaN(start.getTime())) return { ok: false, error: "Pick a date and a start time." };
-  if (start <= new Date()) return { ok: false, error: "That date is in the past. Pick a future afternoon." };
-  if (!place) return { ok: false, error: "Add a place so people know where to go." };
-  if (Number.isNaN(dl.getTime()) || dl <= new Date()) return { ok: false, error: "The voting deadline must be in the future." };
-  if (dl > start) return { ok: false, error: "Voting has to close before the afternoon starts, or at the start." };
+  let error: string | null = null;
+  if (Number.isNaN(start.getTime())) error = "Pick a date and a start time.";
+  else if (start <= new Date()) error = "That date is in the past. Pick a future afternoon.";
+  else if (!place) error = "Add a place so people know where to go.";
+  else if (place.length > 120) error = "Keep the place under 120 characters.";
+  else if (Number.isNaN(dl.getTime()) || dl <= new Date()) error = "The voting deadline must be in the future.";
+  else if (dl > start) error = "Voting has to close before the afternoon starts, or at the start.";
+  if (error) return { ok: false as const, error };
+  return { ok: true as const, row: { starts_at: start.toISOString(), voting_deadline: dl.toISOString(), place, host_id: host } };
+}
 
+export async function createEncounter(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  if (!(await requireAdmin())) return NOT_ADMIN;
+  const form = readEncounterForm(formData);
+  if (!form.ok) return form;
   const supabase = await createClient();
   await supabase.rpc("close_expired_encounters");
-  const { error } = await supabase.from("encounters").insert({ starts_at: start.toISOString(), voting_deadline: dl.toISOString(), place, host_id: host });
+  const { error } = await supabase.from("encounters").insert(form.row);
   if (error?.code === "23505") return { ok: false, error: "Only one afternoon can be open for voting. Close the current one first." };
   if (error) return { ok: false, error: "The afternoon was not created. Try again." };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// Changes the date, time, place, host or deadline of the afternoon open for voting. Stars stay.
+export async function updateEncounter(encounterId: string, _prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  if (!(await requireAdmin())) return NOT_ADMIN;
+  const form = readEncounterForm(formData);
+  if (!form.ok) return form;
+  const supabase = await createClient();
+  await supabase.rpc("close_expired_encounters");
+  const { data, error } = await supabase
+    .from("encounters")
+    .update(form.row)
+    .eq("id", encounterId)
+    .eq("status", "open")
+    .select("id");
+  if (error) return { ok: false, error: "The changes did not save. Try again." };
+  if (!data?.length) return { ok: false, error: "Voting for this afternoon has closed in the meantime. Reload the page." };
   revalidatePath("/", "layout");
   return { ok: true };
 }

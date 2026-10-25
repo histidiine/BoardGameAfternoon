@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { applyImport, closeVoting, createEncounter, mergeMembers, previewImport, removeMemberCopies, setAnonymousVotes, setPlayed, setRole, setVoteBudget, type PreviewResult } from "@/app/admin/actions";
+import { applyImport, closeVoting, createEncounter, mergeMembers, previewImport, removeMemberCopies, setAnonymousVotes, setPlayed, setRole, setVoteBudget, updateEncounter, type PreviewResult } from "@/app/admin/actions";
 import type { ActionResult } from "@/app/actions";
 import { Avatar } from "@/components/Bits";
 import { Icon } from "@/components/Icons";
@@ -112,52 +112,138 @@ function nextSaturday() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Date, time, place, host and deadline: shared by "Plan the next afternoon" and "Edit".
+// The admin's browser turns the local date and time into an exact moment.
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const localDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const localTime = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+function EncounterFields({ members, initial, idPrefix }: {
+  members: MemberLite[];
+  initial: { date: string; time: string; place: string; host: string; deadline: string };
+  idPrefix: string;
+}) {
+  const [date, setDate] = useState(initial.date);
+  const [time, setTime] = useState(initial.time);
+  const [deadline, setDeadline] = useState(initial.deadline);
+  useEffect(() => {
+    if (!date && initial.date) setDate(initial.date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial.date]);
+  const startsIso = useMemo(() => (date && time ? new Date(`${date}T${time}`).toISOString() : ""), [date, time]);
+  const deadlineIso = useMemo(() => (deadline ? new Date(deadline).toISOString() : ""), [deadline]);
+  const id = (k: string) => `${idPrefix}-${k}`;
+  return (
+    <>
+      <div className="row2">
+        <label className="lab" htmlFor={id("date")}>Date<input className="inp" id={id("date")} type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
+        <label className="lab" htmlFor={id("time")}>Start time<input className="inp" id={id("time")} type="time" value={time} onChange={(e) => setTime(e.target.value)} required /></label>
+      </div>
+      <label className="lab" htmlFor={id("place")}>Place<input className="inp" id={id("place")} name="place" defaultValue={initial.place} placeholder="Whose place, or where" maxLength={120} required /></label>
+      <label className="lab" htmlFor={id("host")}>
+        Host
+        <select className="inp" id={id("host")} name="host" defaultValue={initial.host}>
+          <option value="">No host yet</option>
+          {members.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
+        </select>
+      </label>
+      <label className="lab" htmlFor={id("dl")}>
+        Voting closes
+        <input className="inp" id={id("dl")} type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+        <span className="hint">Leave empty to close at the start of the afternoon. Closing the evening before tells owners what to bring.</span>
+      </label>
+      <input type="hidden" name="starts_at" value={startsIso} />
+      <input type="hidden" name="voting_deadline" value={deadlineIso} />
+    </>
+  );
+}
+
+function EditEncounterForm({ open, members, onDone }: { open: Encounter; members: MemberLite[]; onDone: () => void }) {
+  const ui = useUI();
+  const [state, action, saving] = useActionState<ActionResult | null, FormData>(updateEncounter.bind(null, open.id), null);
+  useEffect(() => {
+    if (state?.ok) {
+      ui.toast("Afternoon updated. Stars are kept.");
+      onDone();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+  // Rendered only after a click, so the browser's own time zone is used for the fields.
+  const start = new Date(open.starts_at);
+  const dl = new Date(open.voting_deadline);
+  const initial = {
+    date: localDate(start),
+    time: localTime(start),
+    place: open.place,
+    host: open.host_id ?? "",
+    // A deadline equal to the start shows as empty ("at the start"), so it follows a new start time.
+    deadline: dl.getTime() === start.getTime() ? "" : `${localDate(dl)}T${localTime(dl)}`,
+  };
+  return (
+    <form className="form" action={action}>
+      <EncounterFields members={members} initial={initial} idPrefix="ee" />
+      {state && !state.ok && <p className="err" role="alert">{state.error}</p>}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="btn pink" type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+        <button className="btn ghost" type="button" disabled={saving} onClick={onDone}>Cancel</button>
+      </div>
+      <p className="hint">Stars already given stay. Members see the new details on the Next table page.</p>
+    </form>
+  );
+}
+
 export function EncounterPanel({ open, members, me }: { open: Encounter | null; members: MemberLite[]; me: string }) {
   const ui = useUI();
   const [asking, setAsking] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [pending, start] = useTransition();
   const [state, action, creating] = useActionState<ActionResult | null, FormData>(createEncounter, null);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("14:00");
-  const [deadline, setDeadline] = useState("");
-  useEffect(() => setDate(nextSaturday()), []);
+  const [defaultDate, setDefaultDate] = useState("");
+  useEffect(() => setDefaultDate(nextSaturday()), []);
   useEffect(() => {
     if (state?.ok) ui.toast("Voting is open.");
   }, [state, ui]);
 
-  // The admin's browser turns the local date and time into an exact moment.
-  const startsIso = useMemo(() => (date && time ? new Date(`${date}T${time}`).toISOString() : ""), [date, time]);
-  const deadlineIso = useMemo(() => (deadline ? new Date(deadline).toISOString() : ""), [deadline]);
-
   if (open) {
+    const host = members.find((m) => m.id === open.host_id);
     return (
       <div className="surface panel">
         <h2>Next afternoon</h2>
-        <p>
-          <b>{fmtFull(open.starts_at)}</b> at {fmtTime(open.starts_at)}, {open.place}. Voting closes {closesIn(open.voting_deadline)} ({fmtDay(open.voting_deadline)}, {fmtTime(open.voting_deadline)}).
-        </p>
-        {asking ? (
-          <>
-            <p className="err">Close voting for {fmtDay(open.starts_at)}? Stars freeze and the page moves to Past tables.</p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                className="btn pink"
-                disabled={pending}
-                onClick={() =>
-                  start(async () => {
-                    const res = await closeVoting(open.id);
-                    ui.toast(res.ok ? "Voting closed. The ranking is now in Past tables." : res.error);
-                    setAsking(false);
-                  })
-                }
-              >
-                Close voting
-              </button>
-              <button className="btn ghost" onClick={() => setAsking(false)}>Keep it open</button>
-            </div>
-          </>
+        {editing ? (
+          <EditEncounterForm open={open} members={members} onDone={() => setEditing(false)} />
         ) : (
-          <div><button className="btn" onClick={() => setAsking(true)}>Close voting now</button></div>
+          <>
+            <p>
+              <b>{fmtFull(open.starts_at)}</b> at {fmtTime(open.starts_at)}, {open.place}
+              {host ? `, hosted by ${host.display_name}` : ""}. Voting closes {closesIn(open.voting_deadline)} ({fmtDay(open.voting_deadline)}, {fmtTime(open.voting_deadline)}).
+            </p>
+            {asking ? (
+              <>
+                <p className="err">Close voting for {fmtDay(open.starts_at)}? Stars freeze and the page moves to Past tables.</p>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    className="btn pink"
+                    disabled={pending}
+                    onClick={() =>
+                      start(async () => {
+                        const res = await closeVoting(open.id);
+                        ui.toast(res.ok ? "Voting closed. The ranking is now in Past tables." : res.error);
+                        setAsking(false);
+                      })
+                    }
+                  >
+                    Close voting
+                  </button>
+                  <button className="btn ghost" onClick={() => setAsking(false)}>Keep it open</button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn ghost" onClick={() => setEditing(true)}>Edit date, place or host</button>
+                <button className="btn" onClick={() => setAsking(true)}>Close voting now</button>
+              </div>
+            )}
+          </>
         )}
         <p className="hint">Only one afternoon can be open at a time. Voting also closes by itself at the deadline.</p>
       </div>
@@ -167,24 +253,7 @@ export function EncounterPanel({ open, members, me }: { open: Encounter | null; 
   return (
     <form className="surface panel form" action={action}>
       <h2>Plan the next afternoon</h2>
-      <div className="row2">
-        <label className="lab" htmlFor="en-date">Date<input className="inp" id="en-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
-        <label className="lab" htmlFor="en-time">Start time<input className="inp" id="en-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required /></label>
-      </div>
-      <label className="lab" htmlFor="en-place">Place<input className="inp" id="en-place" name="place" placeholder="Whose place, or where" maxLength={120} required /></label>
-      <label className="lab" htmlFor="en-host">
-        Host
-        <select className="inp" id="en-host" name="host" defaultValue={me}>
-          {members.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
-        </select>
-      </label>
-      <label className="lab" htmlFor="en-dl">
-        Voting closes
-        <input className="inp" id="en-dl" type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-        <span className="hint">Leave empty to close at the start of the afternoon. Closing the evening before tells owners what to bring.</span>
-      </label>
-      <input type="hidden" name="starts_at" value={startsIso} />
-      <input type="hidden" name="voting_deadline" value={deadlineIso} />
+      <EncounterFields members={members} initial={{ date: defaultDate, time: "14:00", place: "", host: me, deadline: "" }} idPrefix="en" />
       {state && !state.ok && <p className="err" role="alert">{state.error}</p>}
       <button className="btn pink" type="submit" disabled={creating} style={{ justifySelf: "start" }}>Open voting</button>
     </form>

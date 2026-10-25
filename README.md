@@ -19,7 +19,7 @@ The full specification lives in the group's Claude project ("Board Game Afternoo
 | Past tables: frozen rankings, games played | `/past`, `/past/[id]` | everyone |
 | Log in or join (magic link, invite code the first time) | `/login` | everyone |
 | Profile: display name, theme, games I own (fix the name, availability, comment) | `/profile` | members |
-| Admin: Excel import, plan an afternoon, close voting, games played, roles, stars per member, anonymous votes | `/admin` | admins |
+| Admin: Excel import, plan an afternoon, edit its date, place and host, close voting, games played, roles, stars per member, anonymous votes | `/admin` | admins |
 
 Themes A "Cozy evening" (default), B "Game table" and C "Fun fair daylight" are switchable from the palette button. Members keep their choice in their profile; visitors keep it in a cookie.
 

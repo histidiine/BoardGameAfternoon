@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { EncounterPanel, ImportPanel, MembersPanel, PlayedPanel, type AdminMember } from "@/app/admin/AdminPanels";
+import { EncounterPanel, FixMembersPanel, ImportPanel, MembersPanel, PlayedPanel, type AdminMember } from "@/app/admin/AdminPanels";
 import { getAllGames, getClosedEncounters, getMembers, getPlayed, getTally, getViewer, getVoteContext } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/Bits";
@@ -53,6 +53,7 @@ export default async function AdminPage() {
         <ImportPanel />
         <PlayedPanel encounters={closed} candidates={candidates} others={others} played={played} />
         <MembersPanel members={(adminMembers ?? []) as AdminMember[]} anonymous={vote.anonymous} me={viewer.id} />
+        <FixMembersPanel members={(adminMembers ?? []) as AdminMember[]} />
       </div>
     </>
   );

@@ -40,7 +40,7 @@ These live in `supabase/migrations/`, so no browser or script can get around the
 ### 1. Create the Supabase project
 
 1. Sign up at [supabase.com](https://supabase.com) (the free plan is enough for a few dozen members) and create a project. Pick a European region, for example Zurich or Frankfurt.
-2. Open **SQL Editor**, paste the whole content of `supabase/migrations/20261025100000_initial_schema.sql`, and run it.
+2. Open **SQL Editor** and run each file of `supabase/migrations/` in order of its name: paste the whole content of `20261025100000_initial_schema.sql`, run it, then do the same with `20261025120000_name_matching_and_member_merge.sql`.
    - If you use the Supabase CLI instead: `npx supabase link --project-ref <your-ref>` then `npx supabase db push`.
 3. Do **not** run `supabase/seed.sql` on this project. It holds sample games and people for local testing only.
 
@@ -80,8 +80,9 @@ npm run dev                  # http://localhost:3000
 
 1. Open `/login`, choose "First time here?", and enter your email, your display name and the invite code. **The first person to log in becomes admin.**
 2. Go to **Admin > Load games from Excel**. The template columns are listed there (Name, Owner, Min players, Max players, Duration (min), Type are required). One row per copy: if two people own Azul, it appears twice.
-3. Owners in the file appear as members right away. When a friend later joins with **the same display name**, the games under that name become theirs. Ask friends to use exactly the name written in the file.
+3. Owners in the file appear as members right away. When a friend later joins with **the same display name**, the games under that name become theirs. Accents, capitals, spaces and punctuation do not matter: "Aurelie" and "Aurélie" are the same person.
 4. **Admin > Plan the next afternoon** opens voting.
+5. **Admin > Fix members and games** cleans up mistakes: it points out members whose names differ only by accents or capitals and merges them (games, favorites and stars move to the one you keep), and it can take all of one member's games off the shelf after a wrong import.
 
 ### 5. Put it online with Vercel
 
@@ -89,6 +90,12 @@ npm run dev                  # http://localhost:3000
 2. On [vercel.com](https://vercel.com), import the repository (the defaults for Next.js are right).
 3. Add the same environment variables, with `NEXT_PUBLIC_SITE_URL` set to the Vercel address.
 4. Back in Supabase, set **Site URL** to that same address.
+
+## Updating a site that is already online
+
+When a new file appears in `supabase/migrations/`, run it once on the real project before (or right after) deploying the new code: **SQL Editor**, paste the whole file, run. With the CLI, `npx supabase db push` runs only the files the project has not seen yet. Running one twice does no harm.
+
+- `20261025120000_name_matching_and_member_merge.sql` (25 Oct 2026): owner names match without accents, capitals, spaces or punctuation (in imports and at sign-up), adds the admin tools to merge two members and to take a member's games off the shelf, and fixes the accent table used for game slugs.
 
 ## Trying it with sample data
 

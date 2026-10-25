@@ -2,14 +2,14 @@
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { applyImport, closeVoting, createEncounter, previewImport, setAnonymousVotes, setPlayed, setRole, type PreviewResult } from "@/app/admin/actions";
+import { applyImport, closeVoting, createEncounter, mergeMembers, previewImport, removeMemberCopies, setAnonymousVotes, setPlayed, setRole, type PreviewResult } from "@/app/admin/actions";
 import type { ActionResult } from "@/app/actions";
 import { Avatar } from "@/components/Bits";
 import { Icon } from "@/components/Icons";
 import { useUI } from "@/components/UI";
 import type { Encounter, MemberLite, Role } from "@/lib/domain";
 import { closesIn, fmtDay, fmtFull, fmtTime, plural } from "@/lib/domain";
-import { TEMPLATE_COLUMNS } from "@/lib/import";
+import { nameKey, TEMPLATE_COLUMNS } from "@/lib/import";
 
 /* ---------- import ---------- */
 const EXAMPLE = ["Azul", "Aurélie", "2", "4", "45", "Family; Small", "Light", "8", "Language-independent", "", "230802", "Draft colorful tiles...", "sleeved"];
@@ -306,6 +306,171 @@ export function MembersPanel({ members, anonymous, me }: { members: AdminMember[
         />{" "}
         Hide voter names, show counts only
       </label>
+    </div>
+  );
+}
+
+/* ---------- fix members and games ---------- */
+// For one person entered twice ("Aurélie" and "Aurelie") and for a wrong import.
+export function FixMembersPanel({ members }: { members: AdminMember[] }) {
+  const ui = useUI();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [mergeAsk, setMergeAsk] = useState<{ from: AdminMember[]; into: AdminMember } | null>(null);
+  const [removeAsk, setRemoveAsk] = useState<AdminMember | null>(null);
+  const [fromId, setFromId] = useState("");
+  const [intoId, setIntoId] = useState("");
+  const [removeId, setRemoveId] = useState("");
+
+  // Members whose names differ only by accents, capitals, spaces or punctuation.
+  const groups = useMemo(() => {
+    const byKey = new Map<string, AdminMember[]>();
+    for (const m of members) byKey.set(nameKey(m.display_name), [...(byKey.get(nameKey(m.display_name)) ?? []), m]);
+    return [...byKey.values()].filter((g) => g.length > 1);
+  }, [members]);
+  const byId = (id: string) => members.find((m) => m.id === id);
+  const label = (m: AdminMember) => `${m.display_name} (${plural(m.copies, "game")}${m.has_account ? ", has an account" : ""})`;
+  const names = (list: AdminMember[]) => list.map((m) => m.display_name).join(" and ");
+
+  function askMerge(from: AdminMember[], into: AdminMember) {
+    setRemoveAsk(null);
+    setMergeAsk({ from, into });
+  }
+  function merge() {
+    if (!mergeAsk) return;
+    const { from, into } = mergeAsk;
+    start(async () => {
+      const done: AdminMember[] = [];
+      for (const f of from) {
+        const res = await mergeMembers(f.id, into.id);
+        if (!res.ok) {
+          ui.toast(res.error);
+          break;
+        }
+        done.push(f);
+      }
+      if (done.length) ui.toast(`${names(done)} merged into ${into.display_name}.`);
+      setMergeAsk(null);
+      setFromId("");
+      setIntoId("");
+      router.refresh();
+    });
+  }
+  function remove() {
+    if (!removeAsk) return;
+    const m = removeAsk;
+    start(async () => {
+      const res = await removeMemberCopies(m.id);
+      ui.toast(res.ok ? `${plural(res.removed, "game")} of ${m.display_name} taken off the shelf.` : res.error);
+      setRemoveAsk(null);
+      setRemoveId("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="surface panel">
+      <h2>Fix members and games</h2>
+
+      {groups.map((g) => (
+        <div key={g.map((m) => m.id).join()} style={{ display: "grid", gap: 8, padding: 12, border: "2px dashed var(--card-heart)", borderRadius: 12 }}>
+          <p>
+            {g.map((m, i) => <span key={m.id}>{i ? (i === g.length - 1 ? " and " : ", ") : ""}<b>{m.display_name}</b></span>)} look like the same person. Which one do you keep?
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {g.map((keep) => (
+              <button key={keep.id} className="btn" disabled={pending} onClick={() => askMerge(g.filter((m) => m !== keep), keep)}>
+                Keep {keep.display_name}
+              </button>
+            ))}
+          </div>
+          {g.filter((m) => m.has_account).length === 1 && (
+            <p className="hint">Keep the one you like best: the account of {g.find((m) => m.has_account)!.display_name} moves along.</p>
+          )}
+        </div>
+      ))}
+
+      <div className="form">
+        <h3>Merge two members</h3>
+        <p className="hint">For one person entered twice. Their games, favorites, stars and hosted afternoons move to the member you keep, games they both own become one copy, and the other member is removed.</p>
+        <div className="row2">
+          <label className="lab" htmlFor="mg-from">
+            Remove
+            <select className="inp" id="mg-from" value={fromId} onChange={(e) => setFromId(e.target.value)} disabled={pending}>
+              <option value="">Choose a member</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{label(m)}</option>)}
+            </select>
+          </label>
+          <label className="lab" htmlFor="mg-into">
+            Keep
+            <select className="inp" id="mg-into" value={intoId} onChange={(e) => setIntoId(e.target.value)} disabled={pending}>
+              <option value="">Choose a member</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{label(m)}</option>)}
+            </select>
+          </label>
+        </div>
+        <div>
+          <button
+            className="btn ghost"
+            disabled={pending}
+            onClick={() => {
+              const f = byId(fromId), k = byId(intoId);
+              if (!f || !k || f === k) return ui.toast("Pick two different members.");
+              askMerge([f], k);
+            }}
+          >
+            Merge
+          </button>
+        </div>
+      </div>
+
+      {mergeAsk && (
+        <div style={{ display: "grid", gap: 8 }} role="alertdialog" aria-label="Confirm merge">
+          <p className="err">
+            Merge {names(mergeAsk.from)} into {mergeAsk.into.display_name}? Their {plural(mergeAsk.from.reduce((n, m) => n + m.copies, 0), "game")}, favorites and stars move to {mergeAsk.into.display_name}, then {names(mergeAsk.from)} {mergeAsk.from.length > 1 ? "are" : "is"} removed. This cannot be undone.
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn pink" onClick={merge} disabled={pending} autoFocus>{pending ? "Merging…" : "Merge"}</button>
+            <button className="btn ghost" onClick={() => setMergeAsk(null)} disabled={pending}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="form">
+        <h3>Take a member&apos;s games off the shelf</h3>
+        <p className="hint">For a wrong import. Every copy of this member is removed from the shelf; a game disappears when nobody else owns it. Favorites and past votes stay, and importing the file again brings the games back.</p>
+        <label className="lab" htmlFor="rm-who">
+          Member
+          <select className="inp" id="rm-who" value={removeId} onChange={(e) => setRemoveId(e.target.value)} disabled={pending}>
+            <option value="">Choose a member</option>
+            {members.filter((m) => m.copies > 0).map((m) => <option key={m.id} value={m.id}>{label(m)}</option>)}
+          </select>
+        </label>
+        <div>
+          <button
+            className="btn ghost"
+            disabled={pending}
+            onClick={() => {
+              const m = byId(removeId);
+              if (!m) return ui.toast("Choose a member first.");
+              setMergeAsk(null);
+              setRemoveAsk(m);
+            }}
+          >
+            Remove their games
+          </button>
+        </div>
+      </div>
+
+      {removeAsk && (
+        <div style={{ display: "grid", gap: 8 }} role="alertdialog" aria-label="Confirm removal">
+          <p className="err">Take {removeAsk.display_name}&apos;s {plural(removeAsk.copies, "game")} off the shelf?</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn pink" onClick={remove} disabled={pending} autoFocus>{pending ? "Removing…" : "Remove their games"}</button>
+            <button className="btn ghost" onClick={() => setRemoveAsk(null)} disabled={pending}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

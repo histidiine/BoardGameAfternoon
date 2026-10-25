@@ -167,6 +167,28 @@ export async function setRole(memberId: string, role: "member" | "admin"): Promi
   return { ok: true };
 }
 
+export interface MergeSummary { removed: string; kept: string; games: number; favorites: number; stars: number }
+
+// One person entered twice: everything of `fromId` moves to `intoId`, then `fromId` is deleted.
+export async function mergeMembers(fromId: string, intoId: string): Promise<{ ok: true; summary: MergeSummary } | { ok: false; error: string }> {
+  if (!(await requireAdmin())) return NOT_ADMIN;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_merge_members", { p_from: fromId, p_into: intoId });
+  if (error) return { ok: false, error: friendly(error, "The members were not merged. Reload the page and try again.") };
+  revalidatePath("/", "layout");
+  return { ok: true, summary: data as MergeSummary };
+}
+
+// Takes every copy of one member off the shelf (hidden, not deleted). A new import brings them back.
+export async function removeMemberCopies(memberId: string): Promise<{ ok: true; removed: number } | { ok: false; error: string }> {
+  if (!(await requireAdmin())) return NOT_ADMIN;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_remove_member_copies", { p_member: memberId });
+  if (error) return { ok: false, error: friendly(error, "The games were not removed. Try again.") };
+  revalidatePath("/", "layout");
+  return { ok: true, removed: data as number };
+}
+
 export async function setAnonymousVotes(anonymous: boolean): Promise<ActionResult> {
   if (!(await requireAdmin())) return NOT_ADMIN;
   const supabase = await createClient();

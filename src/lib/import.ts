@@ -33,6 +33,10 @@ export interface ParseResult {
 const key = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+// How the database matches people (public.name_key): accents, capitals, spaces and
+// punctuation are ignored, so "Aur\u00e9lie" and "Aurelie" are the same owner.
+export const nameKey = (s: string) => key(s.replace(/[\u00e6\u00c6]/g, "a").replace(/[\u0153\u0152\u00f8\u00d8]/g, "o")) || s.trim().toLowerCase();
+
 const HEADER: Record<string, keyof RawRow> = {
   name: "name", game: "name", owner: "owner", minplayers: "min", maxplayers: "max",
   durationmin: "duration", duration: "duration", type: "types", types: "types", complexity: "complexity",
@@ -159,12 +163,12 @@ export function previewSummary(
 ): ImportSummary {
   const norm = (s: string) => s.trim().toLowerCase();
   const games = existing.games.map((g) => ({ name: g.name, bgg: g.bgg_id ? String(g.bgg_id) : "" }));
-  const members = new Set(existing.members.map(norm));
-  const copies = new Set(existing.copies.map((c) => `${norm(c.game)}|${norm(c.owner)}`));
+  const members = new Set(existing.members.map(nameKey));
+  const copies = new Set(existing.copies.map((c) => `${norm(c.game)}|${nameKey(c.owner)}`));
   const out: ImportSummary = { new_games: [], updated_games: [], new_members: [], new_copies: 0 };
   for (const r of rows) {
-    if (!members.has(norm(r.owner))) {
-      members.add(norm(r.owner));
+    if (!members.has(nameKey(r.owner))) {
+      members.add(nameKey(r.owner));
       out.new_members.push(r.owner);
     }
     let g = (r.bgg_id && games.find((x) => x.bgg === r.bgg_id)) || games.find((x) => norm(x.name) === norm(r.name));
@@ -175,7 +179,7 @@ export function previewSummary(
     } else if (!out.new_games.includes(g.name) && !out.updated_games.includes(g.name)) {
       out.updated_games.push(g.name);
     }
-    const k = `${norm(g.name)}|${norm(r.owner)}`;
+    const k = `${norm(g.name)}|${nameKey(r.owner)}`;
     if (!copies.has(k)) {
       copies.add(k);
       out.new_copies++;

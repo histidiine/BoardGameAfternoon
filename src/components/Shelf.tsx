@@ -40,10 +40,14 @@ export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
     if (window.matchMedia("(min-width: 1000px)").matches) setOpen(true);
   }, []);
   const set = <K extends keyof Filters>(k: K, v: Filters[K]) => setF((p) => ({ ...p, [k]: v }));
+  // Every filter narrows the list (AND). Game types can be stacked ("Party" + "Cooperative"
+  // shows games that are both). A game has one duration and one complexity, so those are
+  // one choice at a time: tapping another chip replaces the previous one.
   const toggleIn = <K extends "dur" | "types" | "cplx">(k: K, v: Filters[K][number]) =>
     setF((p) => {
       const list = p[k] as string[];
-      return { ...p, [k]: list.includes(v) ? list.filter((x) => x !== v) : [...list, v] };
+      if (list.includes(v)) return { ...p, [k]: list.filter((x) => x !== v) };
+      return { ...p, [k]: k === "types" ? [...list, v] : [v] };
     });
 
   const favSet = useMemo(() => new Set(favorites), [favorites]);
@@ -61,7 +65,7 @@ export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
       if (q && !normalize(g.name).includes(q)) return false;
       if (n && !(g.min_players <= n && n <= g.max_players)) return false;
       if (f.dur.length && !DURATIONS.some(([k, , fn]) => f.dur.includes(k) && fn(g.duration_min))) return false;
-      if (f.types.length && !g.types.some((t) => f.types.includes(t))) return false;
+      if (f.types.length && !f.types.every((t) => g.types.includes(t))) return false;
       if (f.cplx.length && !(g.complexity && f.cplx.includes(g.complexity))) return false;
       if (f.owner && !g.copies.some((c) => c.owner.id === f.owner)) return false;
       if (f.lang && !g.copies.some((c) => c.language === f.lang)) return false;
@@ -149,7 +153,7 @@ export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
           </div>
         </div>
         <div className="fgroup">
-          <span className="lbl" id="lb-type">Game type</span>
+          <span className="lbl" id="lb-type">Game type <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>(games with every type you pick)</span></span>
           <div className="chips" role="group" aria-labelledby="lb-type">
             {TYPES.map(([k, l]) => <span key={k}>{chip(f.types.includes(k), () => toggleIn("types", k), l, k)}</span>)}
           </div>

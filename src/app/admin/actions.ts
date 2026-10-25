@@ -7,6 +7,7 @@ import { getViewer } from "@/lib/data";
 import { parseRows, previewSummary, type ImportRow, type ImportSummary } from "@/lib/import";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/app/actions";
+import { VOTE_BUDGET_MAX, VOTE_BUDGET_MIN } from "@/lib/domain";
 
 async function requireAdmin() {
   const viewer = await getViewer();
@@ -193,6 +194,20 @@ export async function setAnonymousVotes(anonymous: boolean): Promise<ActionResul
   if (!(await requireAdmin())) return NOT_ADMIN;
   const supabase = await createClient();
   const { error } = await supabase.from("settings").update({ anonymous_votes: anonymous }).eq("id", true);
+  if (error) return { ok: false, error: "The setting did not save. Try again." };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// Stars each member can give per afternoon. Stars already given stay when the number goes down;
+// a member above the new number just cannot add more until they remove some.
+export async function setVoteBudget(budget: number): Promise<ActionResult> {
+  if (!(await requireAdmin())) return NOT_ADMIN;
+  if (!Number.isInteger(budget) || budget < VOTE_BUDGET_MIN || budget > VOTE_BUDGET_MAX) {
+    return { ok: false, error: `Choose a number of stars between ${VOTE_BUDGET_MIN} and ${VOTE_BUDGET_MAX}.` };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("settings").update({ vote_budget: budget }).eq("id", true);
   if (error) return { ok: false, error: "The setting did not save. Try again." };
   revalidatePath("/", "layout");
   return { ok: true };

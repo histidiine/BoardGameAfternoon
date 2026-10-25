@@ -20,6 +20,7 @@ export interface CopyView {
   owner: MemberLite;
   language: Lang | null;
   notes: string | null;
+  available: boolean; // false: the owner cannot bring it for now
 }
 export interface GameView {
   id: string;
@@ -38,6 +39,11 @@ export interface GameView {
   created_at: string;
   copies: CopyView[]; // active copies only
 }
+// At least one owner can bring it. Games with no copy at all count as unavailable.
+export const isAvailable = (g: Pick<GameView, "copies">) => g.copies.some((c) => c.available);
+
+export const VOTE_BUDGET_MIN = 1;
+export const VOTE_BUDGET_MAX = 20;
 export interface Encounter {
   id: string;
   starts_at: string;

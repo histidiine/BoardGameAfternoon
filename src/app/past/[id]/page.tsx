@@ -5,7 +5,7 @@ import { getAllGames, getEncounter, getMembers, getPlayed, getTally, getVoteCont
 import { fmtFull } from "@/lib/domain";
 import { EmptyState } from "@/components/Bits";
 import { Icon } from "@/components/Icons";
-import { Podium, RankList } from "@/components/Ranking";
+import { Podium, RankList, podiumSize } from "@/components/Ranking";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -45,10 +45,12 @@ export default async function PastTablePage({ params }: Params) {
       </section>
       {rows.length ? (
         <>
-          <div className="podium-wrap">
-            <div />
-            <Podium rows={rows} members={members} anonymous={vote.anonymous} />
-          </div>
+          {podiumSize(rows) > 0 && (
+            <div className="podium-wrap">
+              <div />
+              <Podium rows={rows} members={members} anonymous={vote.anonymous} />
+            </div>
+          )}
           <RankList rows={rows} members={members} anonymous={vote.anonymous} played={played} />
         </>
       ) : (

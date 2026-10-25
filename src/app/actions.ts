@@ -76,3 +76,19 @@ export async function logout() {
   revalidatePath("/", "layout");
   redirect("/");
 }
+
+// A member fixes a game they own: its name (typos), whether their copy is available, and their comment.
+export async function updateMyCopy(gameId: string, _prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return { ok: false, error: "Log in first." };
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
+  const notes = String(formData.get("notes") ?? "").trim();
+  const available = formData.get("available") === "on";
+  if (!name || name.length > 120) return { ok: false, error: "Use a game name between 1 and 120 characters." };
+  if (notes.length > 200) return { ok: false, error: "Keep the comment under 200 characters." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("member_update_copy", { p_game: gameId, p_name: name, p_available: available, p_notes: notes });
+  if (error) return { ok: false, error: friendly(error, "Your changes did not save. Try again.") };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

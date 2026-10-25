@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Complexity, GameType, GameView, Lang, VoteContext } from "@/lib/domain";
-import { COMPLEXITY, DURATIONS, LANGS, TYPES, normalize, plural } from "@/lib/domain";
+import { COMPLEXITY, DURATIONS, LANGS, TYPES, isAvailable, normalize, plural } from "@/lib/domain";
 import { EmptyState } from "@/components/Bits";
 import { GameCard } from "@/components/GameCard";
 import { Icon, Px } from "@/components/Icons";
@@ -22,9 +22,10 @@ interface Filters {
   fav: boolean;
   voted: boolean;
   never: boolean;
+  avail: boolean;
   sort: Sort;
 }
-const EMPTY: Filters = { q: "", players: "", dur: [], types: [], cplx: [], owner: "", lang: "", age: "", fav: false, voted: false, never: false, sort: "name" };
+const EMPTY: Filters = { q: "", players: "", dur: [], types: [], cplx: [], owner: "", lang: "", age: "", fav: false, voted: false, never: false, avail: false, sort: "name" };
 
 export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
   mode: "shelf" | "favorites";
@@ -73,6 +74,7 @@ export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
       if ((mode === "favorites" || f.fav) && !favSet.has(g.id)) return false;
       if (f.voted && !votes(g.id)) return false;
       if (f.never && playedSet.has(g.id)) return false;
+      if (f.avail && !isAvailable(g)) return false;
       return true;
     });
     const by: Record<Sort, (a: GameView, b: GameView) => number> = {
@@ -85,7 +87,7 @@ export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [games, f, n, mode, favSet, playedSet, vote]);
 
-  const activeCount = f.dur.length + f.types.length + f.cplx.length + (f.owner ? 1 : 0) + (f.lang ? 1 : 0) + (f.age ? 1 : 0) + (f.fav && mode !== "favorites" ? 1 : 0) + (f.voted ? 1 : 0) + (f.never ? 1 : 0);
+  const activeCount = f.dur.length + f.types.length + f.cplx.length + (f.owner ? 1 : 0) + (f.lang ? 1 : 0) + (f.age ? 1 : 0) + (f.fav && mode !== "favorites" ? 1 : 0) + (f.voted ? 1 : 0) + (f.never ? 1 : 0) + (f.avail ? 1 : 0);
   const anyFilter = activeCount > 0 || !!f.q || !!f.players;
   const stepPlayers = (d: number) => {
     const cur = parseInt(f.players, 10) || 0;
@@ -203,6 +205,7 @@ export function Shelf({ mode, games, favorites, vote, played, loggedIn }: {
           <div className="chips" role="group" aria-label="Show only">
             {loggedIn && mode !== "favorites" && chip(f.fav, () => set("fav", !f.fav), <><Px name="heart" on /> Only my favorites</>)}
             {vote.encounter && chip(f.voted, () => set("voted", !f.voted), <><Px name="star" on /> Only games with votes</>)}
+            {chip(f.avail, () => set("avail", !f.avail), "Available right now")}
             {chip(f.never, () => set("never", !f.never), "Never played by the group")}
           </div>
           <button type="button" className="linkbtn" style={{ color: "var(--card-muted)" }} onClick={() => setF((p) => ({ ...EMPTY, q: p.q, players: p.players, sort: p.sort }))}>

@@ -5,7 +5,7 @@ import { closesIn, fmtDay, fmtFull, fmtTime, plural } from "@/lib/domain";
 import { EmptyState } from "@/components/Bits";
 import { Icon, Px } from "@/components/Icons";
 import { Mascot } from "@/components/Mascot";
-import { Podium, RankList } from "@/components/Ranking";
+import { Podium, RankList, podiumSize } from "@/components/Ranking";
 
 export const metadata: Metadata = { title: "Next table" };
 
@@ -72,7 +72,9 @@ export default async function NextTablePage() {
                 ))}
               </div>
               <span className="muted">
-                {vote.budget - used} of {vote.budget} left{used ? "" : ". Star games on the shelf or below."}
+                {used > vote.budget
+                  ? `You have ${used} stars, more than the ${vote.budget} now allowed. Remove ${used - vote.budget} to star another game.`
+                  : `${vote.budget - used} of ${vote.budget} left${used ? "" : ". Star games on the shelf or below."}`}
               </span>
             </>
           ) : (
@@ -90,12 +92,14 @@ export default async function NextTablePage() {
 
       {rows.length ? (
         <>
-          <div className="podium-wrap">
-            <div style={{ justifySelf: "center" }}>
-              <Mascot mood="cheer" size={110} />
+          {podiumSize(rows) > 0 && (
+            <div className="podium-wrap">
+              <div style={{ justifySelf: "center" }}>
+                <Mascot mood="cheer" size={110} />
+              </div>
+              <Podium rows={rows} members={members} anonymous={vote.anonymous} live={live} />
             </div>
-            <Podium rows={rows} members={members} anonymous={vote.anonymous} live={live} />
-          </div>
+          )}
           {rows.length > 1 && rows[0].tie && (
             <p className="pmuted" style={{ marginTop: 12, textAlign: "center" }}>Ties stay ties. The host decides.</p>
           )}
@@ -103,7 +107,7 @@ export default async function NextTablePage() {
         </>
       ) : (
         <EmptyState mood="happy" title="No stars yet" action={<Link className="btn" href="/">Go to the shelf</Link>}>
-          Star games on the shelf to put them on the table. The top three get the podium.
+          Star games on the shelf to put them on the table. The leaders get the podium.
         </EmptyState>
       )}
       {vote.anonymous && <p className="pmuted" style={{ marginTop: 16 }}>Voter names are hidden for this group. {plural(rows.reduce((s, r) => s + r.votes, 0), "star")} so far.</p>}

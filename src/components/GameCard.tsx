@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { GameView, VoteContext } from "@/lib/domain";
-import { duration, players } from "@/lib/domain";
+import { duration, isAvailable, players } from "@/lib/domain";
 import { starProps } from "@/lib/votes";
 import { Avatar, Cover, Tag } from "@/components/Bits";
 import { Icon } from "@/components/Icons";
@@ -9,7 +9,7 @@ import { HeartButton, StarButton } from "@/components/VoteButtons";
 export function GameCard({ game, fav, vote, loggedIn }: { game: GameView; fav: boolean; vote: VoteContext; loggedIn: boolean }) {
   const owners = [...new Map(game.copies.map((c) => [c.owner.id, c.owner])).values()];
   return (
-    <article className="card">
+    <article className={`card${isAvailable(game) ? "" : " off"}`}>
       <Link href={`/games/${game.slug}`} tabIndex={-1} aria-hidden="true" style={{ textDecoration: "none" }}>
         <Cover game={game} />
       </Link>
@@ -34,6 +34,7 @@ export function GameCard({ game, fav, vote, loggedIn }: { game: GameView; fav: b
             <Tag key={t} type={t} />
           ))}
         </div>
+        {!isAvailable(game) && <span className="unavail sm">Not available right now</span>}
         <div className="cfoot">
           <div className="owners" aria-label={`Owners: ${owners.map((o) => o.display_name).join(", ")}`}>
             {owners.map((o) => (

@@ -27,12 +27,12 @@ export const getMembers = cache(async (): Promise<MemberLite[]> => {
 });
 
 const GAME_COLUMNS =
-  "id, slug, name, image_url, min_players, max_players, duration_min, types, complexity, min_age, description, bgg_id, rules_video_url, created_at, copies(language, notes, active, owner:members(id, display_name, color))";
+  "id, slug, name, image_url, min_players, max_players, duration_min, types, complexity, min_age, description, bgg_id, rules_video_url, created_at, copies(language, notes, active, available, owner:members(id, display_name, color))";
 
 function toGameView(row: any): GameView {
   const copies = (row.copies ?? [])
     .filter((c: any) => c.active && c.owner)
-    .map((c: any) => ({ owner: c.owner, language: c.language, notes: c.notes }))
+    .map((c: any) => ({ owner: c.owner, language: c.language, notes: c.notes, available: c.available !== false }))
     .sort((a: any, b: any) => a.owner.display_name.localeCompare(b.owner.display_name));
   return { ...row, copies };
 }

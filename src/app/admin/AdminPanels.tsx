@@ -2,13 +2,13 @@
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { applyImport, closeVoting, createEncounter, mergeMembers, previewImport, removeMemberCopies, setAnonymousVotes, setPlayed, setRole, type PreviewResult } from "@/app/admin/actions";
+import { applyImport, closeVoting, createEncounter, mergeMembers, previewImport, removeMemberCopies, setAnonymousVotes, setPlayed, setRole, setVoteBudget, type PreviewResult } from "@/app/admin/actions";
 import type { ActionResult } from "@/app/actions";
 import { Avatar } from "@/components/Bits";
 import { Icon } from "@/components/Icons";
 import { useUI } from "@/components/UI";
 import type { Encounter, MemberLite, Role } from "@/lib/domain";
-import { closesIn, fmtDay, fmtFull, fmtTime, plural } from "@/lib/domain";
+import { VOTE_BUDGET_MAX, VOTE_BUDGET_MIN, closesIn, fmtDay, fmtFull, fmtTime, plural } from "@/lib/domain";
 import { nameKey, TEMPLATE_COLUMNS } from "@/lib/import";
 
 /* ---------- import ---------- */
@@ -249,7 +249,7 @@ export interface AdminMember extends MemberLite {
   copies: number;
 }
 
-export function MembersPanel({ members, anonymous, me }: { members: AdminMember[]; anonymous: boolean; me: string }) {
+export function MembersPanel({ members, me }: { members: AdminMember[]; me: string }) {
   const ui = useUI();
   const [pending, start] = useTransition();
   return (
@@ -291,21 +291,73 @@ export function MembersPanel({ members, anonymous, me }: { members: AdminMember[
         </table>
       </div>
       <p className="hint">Owners from the Excel file appear here before they sign up. When they join with the same display name, their games become theirs.</p>
-      <label className="check">
-        <input
-          type="checkbox"
-          defaultChecked={anonymous}
-          disabled={pending}
-          onChange={(e) => {
-            const on = e.target.checked;
-            start(async () => {
-              const res = await setAnonymousVotes(on);
-              ui.toast(res.ok ? (on ? "Voter names hidden." : "Voter names shown.") : res.error);
-            });
-          }}
-        />{" "}
-        Hide voter names, show counts only
-      </label>
+    </div>
+  );
+}
+
+/* ---------- voting rules ---------- */
+export function VotingPanel({ budget, anonymous, open, overBudget }: { budget: number; anonymous: boolean; open: boolean; overBudget: number }) {
+  const ui = useUI();
+  const [pending, start] = useTransition();
+  const [value, setValue] = useState(String(budget));
+  const n = parseInt(value, 10);
+  const valid = Number.isInteger(n) && n >= VOTE_BUDGET_MIN && n <= VOTE_BUDGET_MAX;
+  const step = (d: number) => setValue(String(Math.min(VOTE_BUDGET_MAX, Math.max(VOTE_BUDGET_MIN, (parseInt(value, 10) || budget) + d))));
+  const save = () =>
+    start(async () => {
+      const res = await setVoteBudget(n);
+      ui.toast(res.ok ? `Each member now has ${plural(n, "star")} per afternoon.` : res.error);
+    });
+  return (
+    <div className="surface panel">
+      <h2>Voting rules</h2>
+      <div className="form">
+        <div className="lab">
+          <span id="vb-l">Stars per member, per afternoon</span>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="field stepper" role="group" aria-labelledby="vb-l" style={{ background: "var(--card)", borderColor: "var(--card-field)", color: "var(--card-ink)" }}>
+              <button type="button" onClick={() => step(-1)} disabled={pending || n <= VOTE_BUDGET_MIN} aria-label="One star fewer">{"−"}</button>
+              <input
+                inputMode="numeric"
+                maxLength={2}
+                aria-label="Number of stars"
+                value={value}
+                onChange={(e) => setValue(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onKeyDown={(e) => e.key === "Enter" && valid && n !== budget && save()}
+              />
+              <button type="button" onClick={() => step(1)} disabled={pending || n >= VOTE_BUDGET_MAX} aria-label="One star more">+</button>
+            </div>
+            <button type="button" className="btn" disabled={pending || !valid || n === budget} onClick={save}>
+              {pending ? "Saving…" : "Save"}
+            </button>
+          </div>
+          <span className="hint">
+            Between {VOTE_BUDGET_MIN} and {VOTE_BUDGET_MAX}. Now {plural(budget, "star")}.
+            {open ? " The change applies right away, also to the afternoon open for voting." : ""}
+            {open && valid && n < budget ? " Stars already given stay; members above the new number cannot add more until they remove some." : ""}
+          </span>
+          {open && overBudget > 0 && (
+            <span className="hint">
+              <b>{plural(overBudget, "member")}</b> {overBudget === 1 ? "has" : "have"} more stars than allowed for the open afternoon.
+            </span>
+          )}
+        </div>
+        <label className="check">
+          <input
+            type="checkbox"
+            defaultChecked={anonymous}
+            disabled={pending}
+            onChange={(e) => {
+              const on = e.target.checked;
+              start(async () => {
+                const res = await setAnonymousVotes(on);
+                ui.toast(res.ok ? (on ? "Voter names hidden." : "Voter names shown.") : res.error);
+              });
+            }}
+          />{" "}
+          Hide voter names, show counts only
+        </label>
+      </div>
     </div>
   );
 }

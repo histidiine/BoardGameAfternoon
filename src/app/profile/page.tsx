@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout } from "@/app/actions";
-import { NameForm } from "@/app/profile/ProfileForms";
+import { MyGameRow, NameForm } from "@/app/profile/ProfileForms";
 import { getMyFavorites, getShelfGames, getViewer, getVoteContext } from "@/lib/data";
 import { LANG_LABEL, plural } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
@@ -11,7 +10,8 @@ import { ThemeOptions } from "@/components/ThemePicker";
 
 export const metadata: Metadata = { title: "Profile" };
 
-export default async function ProfilePage() {
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+  const { edit } = await searchParams;
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
   const supabase = await createClient();
@@ -52,26 +52,28 @@ export default async function ProfilePage() {
         <div className="surface panel">
           <h2>Games I own</h2>
           {mine.length ? (
-            <ul className="plist">
+            <ul className="plist" style={{ gap: 14 }}>
               {mine.map(({ g, c }) => (
-                <li key={g.id}>
-                  <Cover game={g} size="thumb" />
-                  <div>
-                    <Link href={`/games/${g.slug}`}>
-                      <b>{g.name}</b>
-                    </Link>
-                    <div className="hint">
-                      {c.language ? LANG_LABEL[c.language] : ""}
-                      {c.notes ? ` · ${c.notes}` : ""}
-                    </div>
-                  </div>
-                </li>
+                <MyGameRow
+                  key={g.id}
+                  startOpen={edit === g.slug}
+                  cover={<Cover game={g} size="thumb" />}
+                  game={{
+                    gameId: g.id,
+                    slug: g.slug,
+                    name: g.name,
+                    available: c.available,
+                    notes: c.notes,
+                    language: c.language ? LANG_LABEL[c.language] : null,
+                    coOwners: g.copies.length - 1,
+                  }}
+                />
               ))}
             </ul>
           ) : (
             <p className="muted">No games under your name yet.</p>
           )}
-          <p className="hint">For now an admin loads games from the Excel file. Adding and removing your own copies, with BoardGameGeek search, comes in v2.</p>
+          <p className="hint">Fix a typo in a name, say when you cannot bring a game, or add a comment. Adding and removing games still goes through an admin and the Excel file.</p>
         </div>
       </div>
     </>

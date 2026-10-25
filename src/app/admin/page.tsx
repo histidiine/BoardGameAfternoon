@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { EncounterPanel, FixMembersPanel, ImportPanel, MembersPanel, PlayedPanel, type AdminMember } from "@/app/admin/AdminPanels";
+import { EncounterPanel, FixMembersPanel, ImportPanel, MembersPanel, PlayedPanel, VotingPanel, type AdminMember } from "@/app/admin/AdminPanels";
 import { getAllGames, getClosedEncounters, getMembers, getPlayed, getTally, getViewer, getVoteContext } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/Bits";
@@ -38,6 +38,10 @@ export default async function AdminPage() {
     ]),
   );
   const others = games.map((g) => ({ id: g.id, name: g.name }));
+  // Members holding more stars than the current budget allows (after the budget was lowered).
+  const starsPerMember = new Map<string, number>();
+  for (const t of Object.values(vote.tally)) for (const id of t.voterIds) starsPerMember.set(id, (starsPerMember.get(id) ?? 0) + 1);
+  const overBudget = [...starsPerMember.values()].filter((n) => n > vote.budget).length;
 
   return (
     <>
@@ -45,14 +49,15 @@ export default async function AdminPage() {
         <div>
           <p className="eyebrow">Admin</p>
           <h1>Run the afternoons</h1>
-          <p className="lede">Load the games, plan the next table, close voting and keep track of what was played.</p>
+          <p className="lede">Load the games, plan the next table, set the voting rules, close voting and keep track of what was played.</p>
         </div>
       </section>
       <div className="panels two">
         <EncounterPanel open={vote.encounter} members={members} me={viewer.id} />
         <ImportPanel />
         <PlayedPanel encounters={closed} candidates={candidates} others={others} played={played} />
-        <MembersPanel members={(adminMembers ?? []) as AdminMember[]} anonymous={vote.anonymous} me={viewer.id} />
+        <VotingPanel budget={vote.budget} anonymous={vote.anonymous} open={!!vote.encounter} overBudget={overBudget} />
+        <MembersPanel members={(adminMembers ?? []) as AdminMember[]} me={viewer.id} />
         <FixMembersPanel members={(adminMembers ?? []) as AdminMember[]} />
       </div>
     </>

@@ -86,7 +86,7 @@ export function StarButton({ gameId, gameName, encounterId, on, count, budgetLef
     startTransition(async () => {
       setState({ on: next, count: state.count + (next ? 1 : -1) });
       const res = await toggleVote(encounterId, gameId, next);
-      const left = budgetLeft + (next ? -1 : 1);
+      const left = Math.max(0, budgetLeft + (next ? -1 : 1));
       ui.toast(res.ok ? (next ? `Starred ${gameName}. ${left} ${left === 1 ? "star" : "stars"} left.` : `Star removed. ${left} left.`) : res.error);
     });
   }
